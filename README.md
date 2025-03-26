@@ -1,7 +1,7 @@
 # SimSearchCellar
 
 ## Overview
-SimSearchCellar is a tool designed to analyze cellar temperature data and detect patterns of sudden temperature drops. It uses AI-powered similarity search to identify similar patterns across time series temperature data.
+SimSearchCellar is a tool designed to analyze temperature data (temperature sensor sits in a cellar) and detect patterns of sudden temperature drops. It uses AI-powered similarity search (FAISS) to identify similar patterns across time series temperature data.
 
 ## Problem Statement
 Cellar temperature data often shows sudden drops that can affect stored items like wine or food. This tool helps identify these patterns and find similar occurrences in historical data that might indicate system issues or environmental factors.

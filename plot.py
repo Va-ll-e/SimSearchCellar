@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 from sim_search import find_similar
 
 # Read data files
-data1 = pd.read_csv('data/actual_temperature.csv', parse_dates=['date'])
-data2 = pd.read_csv('data/wanted_temperature.csv', parse_dates=['date'])
+measured_temp = pd.read_csv('data/actual_temperature.csv', parse_dates=['date'])
+set_temp = pd.read_csv('data/wanted_temperature.csv', parse_dates=['date'])
 weather_data = pd.read_csv('data/weather_data.csv')
 
 # Add simplified time index to dataframes
@@ -16,14 +16,15 @@ def prepare_dataframe(df, start_time):
 
 # Prepare all dataframes
 start_time = datetime(2025, 2, 22, 12, 0)
-data1 = prepare_dataframe(data1, start_time)
-data2 = prepare_dataframe(data2, start_time)
+measured_temp = prepare_dataframe(measured_temp, start_time)
+set_temp = prepare_dataframe(set_temp, start_time)
 weather_data = prepare_dataframe(weather_data, start_time)
 weather_data['outdoor_temp'] = (weather_data['Maksimumstemperatur'] + weather_data['Minimumstemperatur']) / 2
 
 # Setup similarity search dataframe
-sim_search_data = pd.DataFrame({'measured_temp': data1['value']}, index=data1.index)
-sim_search_cols = ['measured_temp']
+sim_search_data = pd.DataFrame({'measured_temp': measured_temp['value']}, index=measured_temp.index)
+sim_search_data['out_temp'] = weather_data['outdoor_temp']
+sim_search_cols = ['measured_temp','out_temp']
 
 # Run similarity search
 query = datetime(2025, 3, 10, 17, 0)
@@ -46,9 +47,9 @@ print(pd.DataFrame(result))
 fig, ax = plt.subplots(figsize=(14, 8))
 
 # Plot main data
-ax.plot(data1.index, data1['value'], label='Actual Temp', color='blue', alpha=0.7)
-ax.plot(data2.index, data2['value'], label='Wanted Temp', color='orange', linestyle='--', alpha=0.7)
-#ax.plot(weather_data.index, weather_data['outdoor_temp'], label='Outdoor Temp', color='green', linestyle=':', alpha=0.5)
+ax.plot(measured_temp.index, measured_temp['value'], label='Actual Temp', color='blue', alpha=0.7)
+ax.plot(set_temp.index, set_temp['value'], label='Set Temp', color='orange', linestyle='--', alpha=0.7)
+ax.plot(weather_data.index, weather_data['outdoor_temp'], label='Outdoor Temp', color='green', linestyle=':', alpha=0.5)
 
 # Highlight query window
 query_end = query + timedelta(hours=w_size-1)
@@ -59,7 +60,7 @@ colors = ['red', 'magenta']
 for i, match in enumerate(result[:min(5, len(result))]):
     start_time = match['start_time']
     end_time = start_time + timedelta(hours=w_size-1)
-    match_data = data1.loc[start_time:end_time]
+    match_data = measured_temp.loc[start_time:end_time]
     
     # Plot match with unique color
     match_color = colors[i % len(colors)]
@@ -68,24 +69,24 @@ for i, match in enumerate(result[:min(5, len(result))]):
             label=f"Match {i+1}")
     ax.axvspan(start_time, end_time, color=match_color, alpha=0.1)
 
-# Fill areas between actual and wanted temperatures
-ax.fill_between(data1.index, data1['value'], data2['value'], 
-                where=(data1['value'] > data2['value']), color='red', alpha=0.1, label='Overshoot')
-ax.fill_between(data1.index, data1['value'], data2['value'], 
-                where=(data1['value'] < data2['value']), color='blue', alpha=0.1, label='Undershoot')
+# Fill areas between actual and Set temperatures
+ax.fill_between(measured_temp.index, measured_temp['value'], set_temp['value'], 
+                where=(measured_temp['value'] > set_temp['value']), color='red', alpha=0.1, label='Overshoot')
+ax.fill_between(measured_temp.index, measured_temp['value'], set_temp['value'], 
+                where=(measured_temp['value'] < set_temp['value']), color='blue', alpha=0.1, label='Undershoot')
 
 # Dynamic tick adjustment function
 def update_ticks(event=None):
     xlim = ax.get_xlim()
     start_idx = max(0, int(xlim[0]))
-    end_idx = min(len(data1), int(xlim[1]))
+    end_idx = min(len(measured_temp), int(xlim[1]))
     visible_range = end_idx - start_idx
     
     interval = 6 if visible_range > 150 else 3 if visible_range > 50 else 1
     
-    tick_positions = [i for i in range(start_idx, end_idx, interval) if i < len(data1.index)]
+    tick_positions = [i for i in range(start_idx, end_idx, interval) if i < len(measured_temp.index)]
     if tick_positions:
-        ax.set_xticks([data1.index[i] for i in tick_positions])
+        ax.set_xticks([measured_temp.index[i] for i in tick_positions])
         fig.canvas.draw_idle()
 
 # Connect update function to zoom events
@@ -102,11 +103,11 @@ plt.tight_layout()
 plt.show()
 
 # Calculate and display temperature deviation statistics
-data1['deviation'] = data1['value'] - data2['value']
+measured_temp['deviation'] = measured_temp['value'] - set_temp['value']
 threshold = 1.0
 
-print(f"\nAverage Deviation: {data1['deviation'].mean():.2f}°C")
-print(f"Max Overshoot: {data1['deviation'].max():.2f}°C")
-print(f"Max Undershoot: {data1['deviation'].min():.2f}°C")
-print(f"Time at exact temperature: {(data1['deviation'] == 0.0).sum() / len(data1) * 100:.2f}%")
-print(f"Time within {threshold}°C threshold: {(abs(data1['deviation']) < threshold).sum() / len(data1) * 100:.2f}%")
+print(f"\nAverage Deviation: {measured_temp['deviation'].mean():.2f}°C")
+print(f"Max Overshoot: {measured_temp['deviation'].max():.2f}°C")
+print(f"Max Undershoot: {measured_temp['deviation'].min():.2f}°C")
+print(f"Time at exact temperature: {(measured_temp['deviation'] == 0.0).sum() / len(measured_temp) * 100:.2f}%")
+print(f"Time within {threshold}°C threshold: {(abs(measured_temp['deviation']) < threshold).sum() / len(measured_temp) * 100:.2f}%")

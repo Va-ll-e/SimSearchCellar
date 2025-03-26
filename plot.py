@@ -40,11 +40,9 @@ sim_search_data.set_index('simple_time', inplace=True)
 
 # Adding avialable data to the dataframe, which can be used for similarity search
 sim_search_data['measured_temp'] = data1['value']
-sim_search_data['wanted_temp'] = data2['value']
-sim_search_data['outdoor_temp'] = weather_data['outdoor_temp']
 
 # Columns to be used for similarity search
-sim_search_cols = ['measured_temp', 'wanted_temp']
+sim_search_cols = ['measured_temp']
 
 # Check if all columns needed for similarity search exist
 for col in sim_search_cols:
@@ -53,39 +51,55 @@ for col in sim_search_cols:
         print(f"Available columns: {list(sim_search_data.columns)}")
         exit(1)
 
+# Parameters for similarity search
+query = datetime(2025, 3, 10, 18, 0)
+w_size = 3
 
-result, succeed = find_similar(pd_data=sim_search_data, columns=sim_search_cols, 
-                               top_k=5, window_size=3, 
-                               query_start=datetime(2025, 3, 10, 17, 0), 
-                               query_stop=datetime(2025, 3, 10, 19, 0)
+result, succeed = find_similar(pd_data= sim_search_data, columns= sim_search_cols, 
+                               top_k= 5, window_size= w_size, 
+                               query_start= query
                                )
-
 
 if not succeed:
     exit(1)
 
 print(pd.DataFrame(result))
-exit(0)
 
-data1['diff'] = data1['value'].diff()
-abs_threshold = 0.7
-drops = data1[data1['diff'] <= (-abs_threshold)]
-spikes = data1[data1['diff'] >= abs_threshold]
+# Create the main plot
+fig, ax = plt.subplots(figsize=(14, 8))
+line1 = ax.plot(data1.index, data1['value'], label='Actual Temp', color='blue', alpha=0.7, zorder=1)[0]
+line2 = ax.plot(data2.index, data2['value'], label='Wanted Temp', color='orange', linestyle='--', alpha=0.7, zorder=1)[0]
+line3 = ax.plot(weather_data.index, weather_data['outdoor_temp'], label='Outdoor Temp', color='green', linestyle=':', alpha=0.5, zorder=1)[0]
 
+# Highlight the query window
+query_end = query + timedelta(hours=w_size-1)  # Adjust to correct endpoint
+ax.axvspan(query, query_end, color='yellow', alpha=0.3, label='Query Window', zorder=0)
 
-fig, ax = plt.subplots(figsize=(12, 6))
-line1 = ax.plot(data1.index, data1['value'], label='Actual Temp', color='blue')[0]
-line2 = ax.plot(data2.index, data2['value'], label='Wanted Temp', color='orange', linestyle='--')[0]
-line3 = ax.plot(weather_data.index, weather_data['outdoor_temp'], label='Outdoor Temp', color='green', linestyle=':')[0]
+# Plot the top matches
+colors = ['red', 'purple', 'brown', 'teal', 'magenta']
+for i, match in enumerate(result[:min(5, len(result))]):
+    start_time = match['start_time']
+    end_time = start_time + timedelta(hours=w_size-1)  # Adjust to correct endpoint
+    
+    # Get the actual data points for this window
+    match_window_data = data1.loc[start_time:end_time]
+    
+    # Plot with unique colors for each match
+    match_color = colors[i % len(colors)]
+    
+    # Plot the match with connecting lines
+    ax.plot(match_window_data.index, match_window_data['value'], 
+            color=match_color, linewidth=2, marker='o', markersize=5, alpha=0.8, zorder=2,
+            label=f"Match {i+1}")
+    
+    # Lighter highlight for the match region
+    ax.axvspan(start_time, end_time, color=match_color, alpha=0.1, zorder=0)
 
+# Fill between actual and wanted temperature
 ax.fill_between(data1.index, data1['value'], data2['value'], 
-                where=(data1['value'] > data2['value']), color='red', alpha=0.3, label='Overshoot')
+                where=(data1['value'] > data2['value']), color='red', alpha=0.1, label='Overshoot', zorder=0)
 ax.fill_between(data1.index, data1['value'], data2['value'], 
-                where=(data1['value'] < data2['value']), color='cyan', alpha=0.3, label='Undershoot')
-                
-scatter1 = ax.scatter(drops.index, drops['value'], color='red', label='Drop', zorder=3)
-scatter2 = ax.scatter(spikes.index, spikes['value'], color='green', label='Spike', zorder=3)
-
+                where=(data1['value'] < data2['value']), color='blue', alpha=0.1, label='Undershoot', zorder=0)
 
 def update_ticks(event=None):
     # Get current x-axis limits
@@ -111,28 +125,19 @@ def update_ticks(event=None):
         ax.set_xticks([data1.index[i] for i in tick_positions])
         fig.canvas.draw_idle()
 
-
 # Connect the update function to zoom events
 fig.canvas.mpl_connect('draw_event', update_ticks)
-
 
 # Initial tick setup
 update_ticks()
 
-plt.title('Actual vs Wanted Temperature with Deviations')
+plt.title('Temperature Data with Query Window and Similar Matches')
 plt.xlabel('Date and Time')
 plt.ylabel('Temperature (°C)')
-plt.legend()
+plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
 plt.grid(True)
 plt.tight_layout()
 plt.show()
-
-
-# Summary stats for drops and spikes
-print("\n\nDrop Details:")
-print(drops[['value', 'diff']].to_string(index=True))
-print("\nSpike Details:")
-print(spikes[['value', 'diff']].to_string(index=True))
 
 
 # Calculate deviation from wanted temperature

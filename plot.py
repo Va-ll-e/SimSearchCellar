@@ -61,8 +61,11 @@ result, succeed = find_similar(pd_data=sim_search_data, columns=sim_search_cols,
                                )
 
 
+if not succeed:
+    exit(1)
+
 print(pd.DataFrame(result))
-exit(1)
+exit(0)
 
 data1['diff'] = data1['value'].diff()
 abs_threshold = 0.7

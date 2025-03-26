@@ -3,6 +3,7 @@ import pandas as pd
 from pandas.plotting import scatter_matrix
 import matplotlib.dates as mdates
 from datetime import datetime, timedelta
+from sim_search import find_similar
 
 
 # Read the data
@@ -12,25 +13,56 @@ weather_data = pd.read_csv('data/weather_data.csv')
 
 
 # Simplify the "date" section in a dataframe for better readability
-def add_simplified_time(df, start_time):
+def add_simplified_time(df, length, start_time):
     st = start_time
     df['simple_time'] = [st + timedelta(hours = i) for i in range (len(df))]
-    df['simple_time_string'] = df['simple_time'].dt.strftime('%Y-%b-%d -- %H:%M')
     return df
 
 
 # Apply simplified time for both datasets
 start_time = datetime(2025, 2, 22, 12, 0)
-data1 = add_simplified_time(data1, start_time)
-data2 = add_simplified_time(data2, start_time)
-weather_data = add_simplified_time(weather_data, start_time)
+length = len(data1)
+data1 = add_simplified_time(data1, length, start_time)
+data2 = add_simplified_time(data2, length, start_time)
+weather_data = add_simplified_time(weather_data, length, start_time)
 weather_data['outdoor_temp'] = (weather_data['Maksimumstemperatur']+weather_data['Minimumstemperatur'])/2
+
 
 # Set the 'simple_time' as the index for plotting
 data1.set_index('simple_time', inplace=True)
 data2.set_index('simple_time', inplace=True)
 weather_data.set_index('simple_time', inplace=True)
 
+# Create dataframe usd for similarity search
+sim_search_data = pd.DataFrame()
+sim_search_data = add_simplified_time(sim_search_data, length, start_time)
+sim_search_data.set_index('simple_time', inplace=True)
+
+# Adding avialable data to the dataframe, which can be used for similarity search
+sim_search_data['measured_temp'] = data1['value']
+sim_search_data['wanted_temp'] = data2['value']
+sim_search_data['outdoor_temp'] = weather_data['outdoor_temp']
+
+# Columns to be used for similarity search
+sim_search_cols = ['measured_temp', 'wanted_temp']
+
+# Check if all columns needed for similarity search exist
+for col in sim_search_cols:
+    if col not in sim_search_data.columns:
+        print(f"Error: Column '{col}' not found in dataframe")
+        print(f"Available columns: {list(sim_search_data.columns)}")
+        exit(1)
+
+
+result, succeed = find_similar(pd_data=sim_search_data, columns=sim_search_cols, 
+                               top_k=5, window_size=3, 
+                               query_start=datetime(2025, 3, 10, 17, 0), 
+                               query_stop=datetime(2025, 3, 10, 19, 0)
+                               )
+
+
+print(pd.DataFrame(result))
+exit(1)
 
 data1['diff'] = data1['value'].diff()
 abs_threshold = 0.7
@@ -74,12 +106,12 @@ def update_ticks(event=None):
     
     if tick_positions:
         ax.set_xticks([data1.index[i] for i in tick_positions])
-        ax.set_xticklabels([data1['simple_time_string'].iloc[i] for i in tick_positions], 
-                          rotation=90, ha='right')
         fig.canvas.draw_idle()
+
 
 # Connect the update function to zoom events
 fig.canvas.mpl_connect('draw_event', update_ticks)
+
 
 # Initial tick setup
 update_ticks()
@@ -95,9 +127,10 @@ plt.show()
 
 # Summary stats for drops and spikes
 print("\n\nDrop Details:")
-print(drops[['simple_time_string', 'value', 'diff']].to_string(index=False))
+print(drops[['value', 'diff']].to_string(index=True))
 print("\nSpike Details:")
-print(spikes[['simple_time_string', 'value', 'diff']].to_string(index=False))
+print(spikes[['value', 'diff']].to_string(index=True))
+
 
 # Calculate deviation from wanted temperature
 data1['deviation'] = data1['value'] - data2['value']
@@ -105,6 +138,8 @@ avg_deviation = data1['deviation'].mean()
 max_overshoot = data1['deviation'].max()
 max_undershoot = data1['deviation'].min()
 correct_temp = (data1['deviation'] == 0.0).sum() / len(data1)
+
+
 # Acceptable threshold in degrees
 threshold = 1.0
 accept_diff = (abs(data1['deviation']) < threshold).sum() / len(data1)

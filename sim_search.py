@@ -17,6 +17,7 @@ def find_similar(pd_data, columns, top_k=5, window_size=3, query_start=None, que
     import numpy as np
     import faiss
     from datetime import timedelta
+    import pandas as pd
     
     # Create embeddings function
     def create_window_embeddings(df, window_size, features):
@@ -89,18 +90,17 @@ def find_similar(pd_data, columns, top_k=5, window_size=3, query_start=None, que
             # Prepare results
             for i, (dist, idx) in enumerate(zip(filtered_distances, filtered_indices)):
                 start_time = timestamps[idx]
-                window_values = pd_data[columns].iloc[idx:idx + window_size].values
+                window = pd_data[columns].iloc[idx:idx + window_size]
                 
                 result = {
                     'rank': i + 1,
                     'start_time': start_time,
-                    'values': window_values,
                     'distance': float(dist)
                 }
                 
-                # Add formatted time if available
-                if 'simple_time_string' in pd_data.columns:
-                    result['formatted_time'] = pd_data.loc[start_time, 'simple_time_string']
+                # Create a separate array for each column
+                for col in columns:
+                    result[col] = window[col].tolist()
                 
                 results.append(result)
         else:

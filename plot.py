@@ -23,8 +23,12 @@ weather_data['outdoor_temp'] = (weather_data['Maksimumstemperatur'] + weather_da
 
 # Setup similarity search dataframe
 sim_search_data = pd.DataFrame({'measured_temp': measured_temp['value']}, index=measured_temp.index)
+sim_search_data['set_temp'] = set_temp['value']
 sim_search_data['out_temp'] = weather_data['outdoor_temp']
-sim_search_cols = ['measured_temp','out_temp']
+
+# Can include 'measured_temp', 'set_temp' and 'out_temp'
+# Can also include others if they are added as columns sim_search_data
+sim_search_cols = ['measured_temp']
 
 # Run similarity search
 query = datetime(2025, 3, 10, 17, 0)

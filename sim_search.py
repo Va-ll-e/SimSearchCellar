@@ -1,147 +1,111 @@
-import pandas as pd
-import numpy as np
-import faiss
-from datetime import datetime, timedelta
-
-
-# Read the data
-actual_data = pd.read_csv('data/actual_temperature.csv', parse_dates=['date'])
-set_data = pd.read_csv('data/wanted_temperature.csv', parse_dates=['date'])
-weather_data = pd.read_csv('data/weather_data.csv')
-
-
-# Simplify the "date" section in a dataframe for better readability
-def add_simplified_time(df, start_time):
-    st = start_time
-    df['simple_time'] = [st + timedelta(hours = i) for i in range (len(df))]
-    df['simple_time_string'] = df['simple_time'].dt.strftime('%Y-%b-%d -- %H:%M')
-    return df
-
-
-# Define the create_window_embeddings function
-def create_window_embeddings(df, window_size, features):
+def find_similar(pd_data, columns, top_k=5, window_size=3, query_start=None, query_stop=None):
     """
-    Create embeddings from sliding windows of the specified features.
+    Find similar windows of data based on the given query period.
     
     Args:
-        df: DataFrame containing the data
-        window_size: Size of the sliding window
-        features: List of column names to include in embeddings
+        pd_data: DataFrame containing the data with datetime index
+        columns: List of column names to include in embeddings
+        top_k: Number of similar windows to return (default: 5)
+        window_size: Size of the sliding window (default: 3)
+        query_start: Start datetime for the query window
+        query_stop: End datetime for the query window
         
     Returns:
-        embeddings: numpy array of embeddings
-        timestamps: list of timestamps corresponding to the start of each window
+        results: List of dictionaries containing similar windows information
+        search_succeeded: Boolean indicating if the search was successful
     """
-    embeddings = []
-    timestamps = []
+    import numpy as np
+    import faiss
+    from datetime import timedelta
     
-    for i in range(len(df) - window_size + 1):
-        # Get data for the current window
-        window_data = df.iloc[i:i+window_size][features].values.flatten()
-        embeddings.append(window_data)
-        timestamps.append(df.index[i])
+    # Create embeddings function
+    def create_window_embeddings(df, window_size, features):
+        """
+        Create embeddings from sliding windows of the specified features.
+        """
+        embeddings = []
+        timestamps = []
+        
+        for i in range(len(df) - window_size + 1):
+            window_data = df.iloc[i:i+window_size][features].values.flatten()
+            embeddings.append(window_data)
+            timestamps.append(df.index[i])
+        
+        return np.array(embeddings, dtype='float32'), timestamps
     
-    return np.array(embeddings, dtype='float32'), timestamps
-
-
-# Apply simplified time for both datasets
-start_time = datetime(2025, 2, 22, 12, 0)
-actual_data = add_simplified_time(actual_data, start_time)
-set_data = add_simplified_time(set_data, start_time)
-weather_data = add_simplified_time(weather_data, start_time)
-weather_data['outdoor_temp'] = (weather_data['Maksimumstemperatur']+weather_data['Minimumstemperatur'])/2
-
-
-# Set the 'simple_time' as the index for plotting
-actual_data.set_index('simple_time', inplace=True)
-set_data.set_index('simple_time', inplace=True)
-weather_data.set_index('simple_time', inplace=True)
-
-
-actual_data['diff'] = actual_data['value'].diff()
-abs_threshold = 0.7
-drops = actual_data[actual_data['diff'] <= (-abs_threshold)]
-spikes = actual_data[actual_data['diff'] >= abs_threshold]
-
-
-# Fix the warning by using ffill() instead of fillna(method='ffill')
-data_combined = actual_data.join(weather_data['outdoor_temp'], how='left').ffill()
-
-
-# Create embeddings
-window_size = 5
-features = ['value']
-embeddings, timestamps = create_window_embeddings(data_combined, window_size, features)
-print(f"Generated {len(embeddings)} embeddings of dimension {embeddings.shape[1]}")
-
-
-# FAISS index
-dimension = embeddings.shape[1]
-index = faiss.IndexFlatL2(dimension)
-index.add(embeddings)
-print(f"FAISS index contains {index.ntotal} vectors")
-
-# Query
-query_start = datetime(2025, 3, 10, 17, 0)
-query_end = datetime(2025, 3, 10, 21, 0)
-
-
-# Flag to track if search was successful
-search_succeeded = False
-
-
-# Create query embedding with the same window_size as the indexed embeddings
-# Check if the query window has enough data points
-if query_end - query_start >= timedelta(hours=window_size-1):
-    # Extract the query window data
-    query_df = data_combined.loc[query_start:query_end]
-    # Use the same window_size and features as the index
-    if len(query_df) >= window_size:
-        query_data = query_df[features].iloc[:window_size].values.flatten()
-        query_embedding = np.array([query_data], dtype='float32')
+    # Create embeddings
+    embeddings, timestamps = create_window_embeddings(pd_data, window_size, columns)
+    
+    # FAISS index
+    dimension = embeddings.shape[1]
+    index = faiss.IndexFlatL2(dimension)
+    index.add(embeddings)
+    
+    # Flag to track if search was successful
+    search_succeeded = False
+    results = []
+    
+    # Check if query window is large enough
+    if query_stop - query_start >= timedelta(hours=window_size-1):
+        # Extract the query window data
+        query_df = pd_data.loc[query_start:query_stop]
         
-        # Search with more results initially to allow for filtering
-        initial_k = 15  # Get more results initially
-        min_hours_between_results = (abs(query_start-query_end).total_seconds()/3600)-1  # Minimum hours between results to avoid overlaps
-        distances, indices = index.search(query_embedding, initial_k)
-        
-        # Filter to remove overlapping results
-        filtered_indices = []
-        filtered_distances = []
-        
-
-        # Stop once we have x non-overlapping results
-        x = 5
-        for i, idx in enumerate(indices[0]):
-            # Skip the result if it's the query itself (exact match with zero distance)
-            if abs(distances[0][i]) < 1e-5 and data_combined.index[idx] == query_start:
-                continue
-                
-            # Check if this result overlaps with any previously selected result
-            overlaps = False
-            for prev_idx in filtered_indices:
-                time_diff = abs((data_combined.index[idx] - data_combined.index[prev_idx]).total_seconds() / 3600)
-                if time_diff < min_hours_between_results:
-                    overlaps = True
-                    break
+        # Check if enough data points
+        if len(query_df) >= window_size:
+            query_data = query_df[columns].iloc[:window_size].values.flatten()
+            query_embedding = np.array([query_data], dtype='float32')
+            
+            # Search with more results initially to allow for filtering
+            initial_k = top_k * 3  # Get more results initially
+            min_hours_between_results = (abs(query_stop-query_start).total_seconds()/3600)-1
+            distances, indices = index.search(query_embedding, initial_k)
+            
+            # Filter to remove overlapping results
+            filtered_indices = []
+            filtered_distances = []
+            
+            for i, idx in enumerate(indices[0]):
+                # Skip the result if it's the query itself
+                if abs(distances[0][i]) < 1e-5 and pd_data.index[idx] == query_start:
+                    continue
                     
-            if not overlaps:
-                filtered_indices.append(idx)
-                filtered_distances.append(distances[0][i])
+                # Check if this result overlaps with any previously selected result
+                overlaps = False
+                for prev_idx in filtered_indices:
+                    time_diff = abs((pd_data.index[idx] - pd_data.index[prev_idx]).total_seconds() / 3600)
+                    if time_diff < min_hours_between_results:
+                        overlaps = True
+                        break
+                        
+                if not overlaps:
+                    filtered_indices.append(idx)
+                    filtered_distances.append(distances[0][i])
+                    
+                if len(filtered_indices) >= top_k:
+                    break
+            
+            search_succeeded = True
+            
+            # Prepare results
+            for i, (dist, idx) in enumerate(zip(filtered_distances, filtered_indices)):
+                start_time = timestamps[idx]
+                window_values = pd_data[columns].iloc[idx:idx + window_size].values
                 
-            if len(filtered_indices) >= x:
-                break
-        
-        search_succeeded = True
-        
-        # Results
-        print(f"\nTop 5 Similar Windows to {query_start}:")
-        for i, (dist, idx) in enumerate(zip(filtered_distances, filtered_indices)):
-            start_time = timestamps[idx]
-            window_values = data_combined['value'].iloc[idx:idx + window_size].values
-            print(f"{i+1}. Start: {data_combined.loc[start_time, 'simple_time_string']}, "
-                f"Temps: {window_values}, Distance: {dist:.2f}")
+                result = {
+                    'rank': i + 1,
+                    'start_time': start_time,
+                    'values': window_values,
+                    'distance': float(dist)
+                }
+                
+                # Add formatted time if available
+                if 'simple_time_string' in pd_data.columns:
+                    result['formatted_time'] = pd_data.loc[start_time, 'simple_time_string']
+                
+                results.append(result)
+        else:
+            print(f"Not enough data points in the query window. Found {len(query_df)}, need {window_size}")
     else:
-        print(f"Not enough data points in the query window. Found {len(query_df)}, need {window_size}")
-else:
-    print(f"{'-'*50}\nQuery window is too small. It should span at least {window_size} hours\n{'-'*50}")
+        print(f"Query window is too small. It should span at least {window_size} hours")
+    
+    return results, search_succeeded

@@ -83,11 +83,20 @@ def find_similar(pd_data, columns, top_k=5, window_size=3, query_start=None, que
     # Prepare results
     for i, (dist, idx) in enumerate(zip(filtered_distances, filtered_indices)):
         window = pd_data[columns].iloc[idx:idx + window_size]
+        
+        # Create summarized statistics for each column instead of full lists
+        column_summaries = {}
+        for col in columns:
+            column_summaries[f"{col}_mean"] = round(window[col].mean(), 2)
+            column_summaries[f"{col}_min"] = round(window[col].min(), 2)
+            column_summaries[f"{col}_max"] = round(window[col].max(), 2)
+        
         result = {
             'rank': i + 1,
             'start_time': timestamps[idx],
-            'distance': float(dist),
-            **{col: window[col].tolist() for col in columns}
+            'end_time': pd_data.index[idx + window_size - 1],  # Add end time for clarity
+            'distance': round(float(dist), 4),
+            **column_summaries
         }
         results.append(result)
     

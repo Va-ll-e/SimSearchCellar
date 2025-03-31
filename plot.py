@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from sim_search import find_similar
+from src.sim_search import find_similar
 
 # Read data files
 measured_temp = pd.read_csv("data/actual_temperature.csv", parse_dates=["date"])

@@ -1,5 +1,4 @@
 from datetime import timedelta
-
 import faiss
 import numpy as np
 

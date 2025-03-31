@@ -1,8 +1,7 @@
 from datetime import datetime, timedelta
-
+import sys
 import matplotlib.pyplot as plt
 import pandas as pd
-
 from src.sim_search import find_similar
 
 # Read data files
@@ -13,10 +12,12 @@ weather_data = pd.read_csv("data/weather_data.csv")
 
 # Add simplified time index to dataframes
 def prepare_dataframe(df, start_time):
+    """
+    Prepare the dataframe by adding a simplified time index for better readability.
+    """
     df["simple_time"] = [start_time + timedelta(hours=i) for i in range(len(df))]
     df.set_index("simple_time", inplace=True)
     return df
-
 
 # Prepare all dataframes
 start_time = datetime(2025, 2, 22, 12, 0)
@@ -46,7 +47,7 @@ result, succeed = find_similar(
 
 if not succeed:
     print("Similarity search failed")
-    exit(1)
+    sys.exit(1)
 
 print(pd.DataFrame(result))
 
@@ -87,12 +88,18 @@ for i, match in enumerate(result[: min(5, len(result))]):
 
 # Dynamic tick adjustment function
 def update_ticks(event=None):
+    """
+    Update x-ticks based on the current zoom level.
+    Great when inspecting the plot with zoom.
+    """
+    LARGE_RANGE_THRESHOLD = 150
+    MEDIUM_RANGE_THRESHOLD = 50
     xlim = ax.get_xlim()
     start_idx = max(0, int(xlim[0]))
     end_idx = min(len(measured_temp), int(xlim[1]))
     visible_range = end_idx - start_idx
-
-    interval = 6 if visible_range > 150 else 3 if visible_range > 50 else 1
+    
+    interval = 6 if visible_range > LARGE_RANGE_THRESHOLD else 3 if visible_range > MEDIUM_RANGE_THRESHOLD else 1
 
     tick_positions = [i for i in range(start_idx, end_idx, interval) if i < len(measured_temp.index)]
     if tick_positions:

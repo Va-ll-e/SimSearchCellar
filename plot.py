@@ -60,9 +60,6 @@ fig, ax = plt.subplots(figsize=(14, 8))
 
 # Plot main data
 ax.plot(measured_temp.index, measured_temp['value'], label='Actual Temp', color='blue', alpha=0.7)
-ax.plot(set_temp.index, set_temp['value'], label='Set Temp', color='orange', linestyle='--', alpha=0.7)
-ax.plot(weather_data.index, weather_data['outdoor_temp'], label='Outdoor Temp', color='green', linestyle=':', alpha=0.5)
-
 
 # Highlight query window
 query_end = query + timedelta(hours=w_size-1)
@@ -70,7 +67,7 @@ ax.axvspan(query, query_end, color='yellow', alpha=0.3, label='Query Window')
 
 
 # Plot top matches
-colors = ['red', 'magenta']
+colors = ['#FF7F0E', '#2CA02C', '#9467BD', '#E377C2', '#8C564B']  # orange, green, purple, pink, brown
 for i, match in enumerate(result[:min(5, len(result))]):
     start_time = match['start_time']
     end_time = start_time + timedelta(hours=w_size-1)
@@ -83,13 +80,6 @@ for i, match in enumerate(result[:min(5, len(result))]):
             color=match_color, linewidth=2, marker='o', markersize=5, alpha=0.8,
             label=f"Match {i+1}")
     ax.axvspan(start_time, end_time, color=match_color, alpha=0.1)
-
-
-# Fill areas between actual and Set temperatures
-ax.fill_between(measured_temp.index, measured_temp['value'], set_temp['value'], 
-                where=(measured_temp['value'] > set_temp['value']), color='red', alpha=0.1, label='Overshoot')
-ax.fill_between(measured_temp.index, measured_temp['value'], set_temp['value'], 
-                where=(measured_temp['value'] < set_temp['value']), color='blue', alpha=0.1, label='Undershoot')
 
 
 # Dynamic tick adjustment function
@@ -120,14 +110,3 @@ plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
 plt.grid(True)
 plt.tight_layout()
 plt.show()
-
-
-# Calculate and display temperature deviation statistics
-measured_temp['deviation'] = measured_temp['value'] - set_temp['value']
-threshold = 1.0
-
-print(f"\nAverage Deviation: {measured_temp['deviation'].mean():.2f}°C")
-print(f"Max Overshoot: {measured_temp['deviation'].max():.2f}°C")
-print(f"Max Undershoot: {measured_temp['deviation'].min():.2f}°C")
-print(f"Time at exact temperature: {(measured_temp['deviation'] == 0.0).sum() / len(measured_temp) * 100:.2f}%")
-print(f"Time within {threshold}°C threshold: {(abs(measured_temp['deviation']) < threshold).sum() / len(measured_temp) * 100:.2f}%")

@@ -1,3 +1,4 @@
+"""Similarity Search Module."""
 from datetime import timedelta
 
 import faiss

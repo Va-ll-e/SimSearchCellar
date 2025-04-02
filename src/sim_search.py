@@ -56,7 +56,8 @@ def find_similar(pd_data, columns, top_k=5, window_size=3, query_start=None, min
     timestamps = pd_data.index[: -window_size + 1] if n_samples > 0 else []
 
     # Create FAISS index - for large datasets, consider using approximate search
-    if len(embeddings) > 10000:  # Threshold where approximate might be better
+    embedding_threshold = 10000 # Threshold where approximate might be better
+    if len(embeddings) > embedding_threshold:
         # For large datasets, use IVF index for better performance
         nlist = min(int(np.sqrt(len(embeddings))), 100)  # Rule of thumb
         quantizer = faiss.IndexFlatL2(embeddings.shape[1])

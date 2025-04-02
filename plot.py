@@ -20,6 +20,7 @@ Output:
 - A plot saved as './plots/first_similarity_search.png'.
 """
 
+import sys
 from datetime import datetime, timedelta
 
 import matplotlib.pyplot as plt
@@ -36,6 +37,7 @@ weather_data = pd.read_csv("data/weather_data.csv")
 
 # Add simplified time index to dataframes
 def prepare_dataframe(df, start_time):
+    """Prepare dataframe by adding a simplified time index."""
     df["simple_time"] = [start_time +
                          timedelta(hours=i) for i in range(len(df))]
     df.set_index("simple_time", inplace=True)
@@ -72,7 +74,7 @@ result, succeed = find_similar(
 
 if not succeed:
     print("Similarity search failed")
-    exit(1)
+    sys.exit(1)
 
 print(pd.DataFrame(result))
 

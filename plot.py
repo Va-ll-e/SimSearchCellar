@@ -1,3 +1,25 @@
+"""This script performs a similarity search on temperature data and visualizes the results.
+
+Steps:
+1. Reads and processes temperature and weather data from CSV files.
+2. Prepares dataframes with simplified time indices.
+3. Sets up a similarity search dataframe with selected columns.
+4. Runs a similarity search using a query window and specified parameters.
+5. Visualizes the results, including:
+   - Actual temperature data.
+   - Highlighted query window.
+   - Top matches from the similarity search.
+6. Saves the resulting plot as a PNG file.
+
+Dependencies:
+- pandas
+- matplotlib
+- src.sim_search (custom module for similarity search)
+
+Output:
+- A plot saved as './plots/first_similarity_search.png'.
+"""
+
 from datetime import datetime, timedelta
 
 import matplotlib.pyplot as plt
@@ -6,14 +28,16 @@ import pandas as pd
 from src.sim_search import find_similar
 
 # Read data files
-measured_temp = pd.read_csv("data/actual_temperature.csv", parse_dates=["date"])
+measured_temp = pd.read_csv(
+    "data/actual_temperature.csv", parse_dates=["date"])
 set_temp = pd.read_csv("data/wanted_temperature.csv", parse_dates=["date"])
 weather_data = pd.read_csv("data/weather_data.csv")
 
 
 # Add simplified time index to dataframes
 def prepare_dataframe(df, start_time):
-    df["simple_time"] = [start_time + timedelta(hours=i) for i in range(len(df))]
+    df["simple_time"] = [start_time +
+                         timedelta(hours=i) for i in range(len(df))]
     df.set_index("simple_time", inplace=True)
     return df
 
@@ -23,11 +47,13 @@ start_time = datetime(2025, 2, 22, 12, 0)
 measured_temp = prepare_dataframe(measured_temp, start_time)
 set_temp = prepare_dataframe(set_temp, start_time)
 weather_data = prepare_dataframe(weather_data, start_time)
-weather_data["outdoor_temp"] = (weather_data["Maksimumstemperatur"] + weather_data["Minimumstemperatur"]) / 2
+weather_data["outdoor_temp"] = (
+    weather_data["Maksimumstemperatur"] + weather_data["Minimumstemperatur"]) / 2
 
 
 # Setup similarity search dataframe
-sim_search_data = pd.DataFrame({"measured_temp": measured_temp["value"]}, index=measured_temp.index)
+sim_search_data = pd.DataFrame(
+    {"measured_temp": measured_temp["value"]}, index=measured_temp.index)
 sim_search_data["set_temp"] = set_temp["value"]
 sim_search_data["out_temp"] = weather_data["outdoor_temp"]
 
@@ -56,7 +82,8 @@ fig, ax = plt.subplots(figsize=(14, 8))
 
 
 # Plot main data
-ax.plot(measured_temp.index, measured_temp["value"], label="Actual Temp", color="blue", alpha=0.7)
+ax.plot(measured_temp.index,
+        measured_temp["value"], label="Actual Temp", color="blue", alpha=0.7)
 
 # Highlight query window
 query_end = query + timedelta(hours=w_size - 1)
@@ -64,7 +91,8 @@ ax.axvspan(query, query_end, color="yellow", alpha=0.3, label="Query Window")
 
 
 # Plot top matches
-colors = ["#FF7F0E", "#2CA02C", "#9467BD", "#E377C2", "#8C564B"]  # orange, green, purple, pink, brown
+colors = ["#FF7F0E", "#2CA02C", "#9467BD", "#E377C2",
+          "#8C564B"]  # orange, green, purple, pink, brown
 for i, match in enumerate(result[: min(5, len(result))]):
     start_time = match["start_time"]
     end_time = start_time + timedelta(hours=w_size - 1)
@@ -94,7 +122,8 @@ def update_ticks(event=None):
 
     interval = 6 if visible_range > 150 else 3 if visible_range > 50 else 1
 
-    tick_positions = [i for i in range(start_idx, end_idx, interval) if i < len(measured_temp.index)]
+    tick_positions = [i for i in range(
+        start_idx, end_idx, interval) if i < len(measured_temp.index)]
     if tick_positions:
         ax.set_xticks([measured_temp.index[i] for i in tick_positions])
         fig.canvas.draw_idle()
@@ -116,4 +145,5 @@ plt.tight_layout()
 # plt.show()
 
 # Save the plot as png
-plt.savefig("./plots/first_similarity_search.png", dpi=300, bbox_inches="tight")
+plt.savefig("./plots/first_similarity_search.png",
+            dpi=300, bbox_inches="tight")

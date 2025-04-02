@@ -14,5 +14,4 @@ def test_plot_runs_without_crashing():
     assert True, "plot_main ran successfully"
 
     # Assert that the plot file was created
-    assert Path('./plots/first_similarity_search.png').exists(), \
-        "Plot file was not created."
+    assert Path("./plots/first_similarity_search.png").exists(), "Plot file was not created."

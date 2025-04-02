@@ -11,7 +11,14 @@ dependencies = [
     ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "mypy", "ruff", "tzlocal"]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "mypy",
+    "ruff",
+    "tzlocal",
+    "pandas-stubs"
+    ]
 
 [tool.ruff]
 line-length = 127

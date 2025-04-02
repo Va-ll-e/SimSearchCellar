@@ -115,8 +115,8 @@ for i, match in enumerate(result[: min(5, len(result))]):
     ax.axvspan(start_time, end_time, color=match_color, alpha=0.1)
 
 
-# Dynamic tick adjustment function
 def update_ticks(event=None):
+    """Dynamic tick adjustment function."""
     xlim = ax.get_xlim()
     start_idx = max(0, int(xlim[0]))
     end_idx = min(len(measured_temp), int(xlim[1]))
